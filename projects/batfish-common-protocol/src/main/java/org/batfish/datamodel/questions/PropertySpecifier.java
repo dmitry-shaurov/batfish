@@ -9,6 +9,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -22,6 +23,7 @@ import org.batfish.datamodel.answers.AutocompleteSuggestion;
 import org.batfish.datamodel.answers.Schema;
 import org.batfish.datamodel.answers.Schema.Type;
 import org.batfish.datamodel.table.Row.RowBuilder;
+import org.batfish.specifier.SpecifierContext;
 
 public abstract class PropertySpecifier {
 
@@ -29,9 +31,15 @@ public abstract class PropertySpecifier {
   public static class PropertyDescriptor<T> {
     @Nonnull Function<T, Object> _getter;
     @Nonnull Schema _schema;
+    @Nullable SpecifierContext _context;
 
     public PropertyDescriptor(Function<T, Object> getter, Schema schema) {
       _getter = getter;
+      _schema = schema;
+    }
+
+    public PropertyDescriptor(BiFunction<T, SpecifierContext, Object> getter, Schema schema) {
+      _getter = (T o) -> getter.apply(o, _context);
       _schema = schema;
     }
 
@@ -41,6 +49,10 @@ public abstract class PropertySpecifier {
 
     public Schema getSchema() {
       return _schema;
+    }
+
+    public void setContext(SpecifierContext context) {
+      _context = context;
     }
   }
 
@@ -85,7 +97,7 @@ public abstract class PropertySpecifier {
     return suggestions;
   }
 
-  /** Converts the extracted propertyValue to what is specified in the properyDescriptor */
+  /** Converts the extracted propertyValue to what is specified in the propertyDescriptor */
   public static Object convertTypeIfNeeded(
       Object propertyValue, PropertyDescriptor<?> propertyDescriptor) {
 
@@ -152,6 +164,23 @@ public abstract class PropertySpecifier {
     Object propertyValue = propertyDescriptor.getGetter().apply(object);
     propertyValue = PropertySpecifier.convertTypeIfNeeded(propertyValue, propertyDescriptor);
     fillProperty(columnName, propertyValue, row, propertyDescriptor); // separate for testing
+  }
+
+  /**
+   * Uses {@code propertyDescriptor} to extract the property value from {@code object} with the
+   * given {@code context} and insert into {@code row} at {@code columnName}.
+   *
+   * @throws ClassCastException if the recovered property value is not compatible with the specified
+   *     {@link Schema} in the {@code propertyDescriptor}.
+   */
+  public static <T> void fillProperty(
+      PropertyDescriptor<T> propertyDescriptor,
+      T object,
+      String columnName,
+      RowBuilder row,
+      SpecifierContext context) {
+    propertyDescriptor.setContext(context);
+    fillProperty(propertyDescriptor, object, columnName, row);
   }
 
   @VisibleForTesting
