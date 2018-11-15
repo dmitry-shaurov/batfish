@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -52,6 +53,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
@@ -3778,9 +3780,18 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return p.checkRoutingLoop(q);
   }
 
+  private final Cache<NetworkSnapshot, SpecifierContext> _cachedSpecifierContexts =
+      CacheBuilder.newBuilder().maximumSize(6).build();
+
   @Override
   public SpecifierContext specifierContext() {
-    return new SpecifierContextImpl(this, loadConfigurations());
+    final NetworkSnapshot ns = getNetworkSnapshot();
+    try {
+      return _cachedSpecifierContexts.get(
+          ns, () -> new SpecifierContextImpl(this, loadConfigurations(ns)));
+    } catch (ExecutionException e) {
+      return new SpecifierContextImpl(this, loadConfigurations(ns));
+    }
   }
 
   @Override
