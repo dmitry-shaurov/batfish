@@ -15,6 +15,7 @@ import static org.batfish.main.ReachabilityParametersResolver.resolveReachabilit
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.collect.ImmutableList;
@@ -118,6 +119,7 @@ import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.IpsecVpn;
+import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.RipNeighbor;
 import org.batfish.datamodel.RipProcess;
 import org.batfish.datamodel.SubRange;
@@ -126,6 +128,7 @@ import org.batfish.datamodel.Topology;
 import org.batfish.datamodel.Vrf;
 import org.batfish.datamodel.acl.AclExplainer;
 import org.batfish.datamodel.acl.AclLineMatchExpr;
+import org.batfish.datamodel.acl.AclLineMatchExprs;
 import org.batfish.datamodel.acl.MatchHeaderSpace;
 import org.batfish.datamodel.answers.Answer;
 import org.batfish.datamodel.answers.AnswerElement;
@@ -3933,10 +3936,30 @@ public class Batfish extends PluginConsumer implements IBatfish {
         !parameters.getFlowDispositions().isEmpty(), "Must specify at least one FlowDisposition");
     BDDPacket pkt = new BDDPacket();
 
+    AclLineMatchExpr paramHeaderSpace = parameters.getHeaderSpace();
+    Preconditions.checkArgument(
+        !(paramHeaderSpace == TRUE && parameters.getInvertSearch()),
+        "Inverting the full headerspace results in the empty headerspace");
+
+    if (paramHeaderSpace == TRUE) {
+      // By default, exclude network and broadcast IPs of known networks.
+      Set<Prefix> knownPrefixes =
+          loadDataPlane()
+              .getFibs()
+              .values()
+              .stream()
+              .flatMap(vrfFibs -> vrfFibs.values().stream())
+              .flatMap(fib -> fib.getNextHopInterfaces().keySet().stream())
+              .map(AbstractRoute::getNetwork)
+              .collect(Collectors.toSet());
+      paramHeaderSpace =
+          AclLineMatchExprs.matchDst(
+              AclIpSpace.union(
+                  knownPrefixes.stream().map(Prefix::toHostIpSpace).collect(Collectors.toList())));
+    }
+
     AclLineMatchExpr headerSpace =
-        parameters.getInvertSearch()
-            ? not(parameters.getHeaderSpace())
-            : parameters.getHeaderSpace();
+        parameters.getInvertSearch() ? not(paramHeaderSpace) : parameters.getHeaderSpace();
 
     /*
      * TODO should we have separate parameters for base and delta?
