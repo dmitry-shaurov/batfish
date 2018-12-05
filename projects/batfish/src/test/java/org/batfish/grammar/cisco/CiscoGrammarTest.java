@@ -49,6 +49,7 @@ import static org.batfish.datamodel.matchers.ConfigurationMatchers.hasVrfs;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasAclName;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasBandwidth;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasDefinedStructure;
+import static org.batfish.datamodel.matchers.DataModelMatchers.hasIncomingFilter;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasIpProtocols;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasMemberInterfaces;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasName;
@@ -634,6 +635,90 @@ public class CiscoGrammarTest {
     assertThat(
         defaults.getDefaultVrf().getOspfProcess().getReferenceBandwidth(),
         equalTo(getReferenceOspfBandwidth(ConfigurationFormat.CISCO_ASA)));
+  }
+
+  @Test
+  public void testAsaFilters() throws IOException {
+    String hostname = "asa-filters";
+    Configuration c = parseConfig(hostname);
+
+    String ifaceAlias = "name1";
+
+    Flow flowPass = createFlow(IpProtocol.TCP, 1, 123);
+    Flow flowFail = createFlow(IpProtocol.TCP, 1, 1);
+
+    // Confirm access list permits only traffic matching ACL
+    assertThat(c, hasInterface(ifaceAlias, hasOutgoingFilter(accepts(flowPass, null, c))));
+    assertThat(c, hasInterface(ifaceAlias, hasOutgoingFilter(not(accepts(flowFail, null, c)))));
+  }
+
+  @Test
+  public void testAsaFiltersGlobal() throws IOException {
+    String hostname = "asa-filters-global";
+    Configuration c = parseConfig(hostname);
+
+    String iface1Alias = "name1";
+    String iface2Alias = "name2";
+
+    Flow flowPass = createFlow(IpProtocol.TCP, 1, 123);
+    Flow flowFail = createFlow(IpProtocol.TCP, 1, 1);
+
+    // Confirm global ACL affects all interfaces
+    assertThat(c, hasInterface(iface1Alias, hasIncomingFilter(accepts(flowPass, null, c))));
+    assertThat(c, hasInterface(iface2Alias, hasIncomingFilter(accepts(flowPass, null, c))));
+    assertThat(c, hasInterface(iface1Alias, hasIncomingFilter(not(accepts(flowFail, null, c)))));
+    assertThat(c, hasInterface(iface2Alias, hasIncomingFilter(not(accepts(flowFail, null, c)))));
+  }
+
+  @Test
+  public void testAsaFiltersGlobalReference() throws IOException {
+    String hostname = "asa-filters-global";
+    String filename = "configs/" + hostname;
+    parseConfig(hostname);
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+    ConvertConfigurationAnswerElement ccae =
+        batfish.loadConvertConfigurationAnswerElementOrReparse();
+
+    // Confirm reference tracking is correct for globally applied ASA access list in access group
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_GLOBAL", 1));
+  }
+
+  @Test
+  public void testAsaFiltersReference() throws IOException {
+    String hostname = "asa-filters";
+    String filename = "configs/" + hostname;
+    parseConfig(hostname);
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+    ConvertConfigurationAnswerElement ccae =
+        batfish.loadConvertConfigurationAnswerElementOrReparse();
+
+    // Confirm reference tracking is correct for ASA access lists in access group
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_IN", 1));
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_OUT", 1));
+    assertThat(ccae, hasUndefinedReference(filename, IP_ACCESS_LIST, "FILTER_UNDEF"));
+  }
+
+  @Test
+  public void testAsaSecurityLevelAndFilters() throws IOException {
+    String hostname = "asa-filters";
+    Configuration c = parseConfig(hostname);
+
+    String ifaceAlias = "name1";
+
+    Flow flowPass = createFlow(IpProtocol.TCP, 1, 123);
+    Flow flowFail = createFlow(IpProtocol.TCP, 1, 1);
+
+    // Confirm access list permits only traffic matching both ACL and security level restrictions
+    assertThat(
+        c, hasInterface(ifaceAlias, hasOutgoingFilter(accepts(flowPass, "GigabitEthernet0/1", c))));
+    assertThat(
+        c,
+        hasInterface(
+            ifaceAlias, hasOutgoingFilter(not(accepts(flowPass, "GigabitEthernet0/2", c)))));
+    assertThat(
+        c,
+        hasInterface(
+            ifaceAlias, hasOutgoingFilter(not(accepts(flowFail, "GigabitEthernet0/2", c)))));
   }
 
   @Test
@@ -1358,6 +1443,27 @@ public class CiscoGrammarTest {
         ccae,
         hasUndefinedReference(
             filename, INSPECT_CLASS_MAP, "ciundefined", INSPECT_POLICY_MAP_INSPECT_CLASS));
+  }
+
+  @Test
+  public void testIosIpRouteVrf() throws IOException {
+    String hostname = "ios-ip-route-vrf";
+    String vrf = "management";
+    Configuration c = parseConfig(hostname);
+
+    assertThat(
+        c,
+        hasVrfs(
+            hasEntry(
+                equalTo(vrf),
+                hasStaticRoutes(
+                    equalTo(
+                        ImmutableSet.of(
+                            StaticRoute.builder()
+                                .setAdministrativeCost(1)
+                                .setNetwork(Prefix.ZERO)
+                                .setNextHopIp(new Ip("1.2.3.4"))
+                                .build()))))));
   }
 
   @Test
@@ -2254,9 +2360,25 @@ public class CiscoGrammarTest {
         hasMultipathEquivalentAsPathMatchMode(MultipathEquivalentAsPathMatchMode.PATH_LENGTH));
 
     assertThat(aristaDisabled, hasMultipathEbgp(false));
-    assertThat(aristaEnabled, hasMultipathEbgp(true));
+    assertThat(aristaEnabled, hasMultipathEbgp(false));
     assertThat(nxosDisabled, hasMultipathEbgp(false));
-    assertThat(nxosEnabled, hasMultipathEbgp(true));
+    assertThat(nxosEnabled, hasMultipathEbgp(false));
+  }
+
+  @Test
+  public void testBgpProcnum() throws IOException {
+    for (String hostname : ImmutableList.of("ios-bgp-procnum-dotted", "ios-bgp-procnum-long")) {
+      Configuration c = parseConfig(hostname);
+      assertThat(
+          hostname,
+          c.getVrfs()
+              .get(DEFAULT_VRF_NAME)
+              .getBgpProcess()
+              .getActiveNeighbors()
+              .get(Prefix.parse("2.2.2.3/32"))
+              .getLocalAs(),
+          equalTo(4123456789L));
+    }
   }
 
   @Test
@@ -2986,6 +3108,35 @@ public class CiscoGrammarTest {
                     IpsecAuthenticationAlgorithm.HMAC_MD5_96),
                 IpsecProposalMatchers.hasEncryptionAlgorithm(EncryptionAlgorithm.AES_256_GCM),
                 hasProtocols(ImmutableSortedSet.of(IpsecProtocol.ESP)))));
+  }
+
+  @Test
+  public void testIosOspfPassive() throws IOException {
+    String testrigName = "ios-ospf-passive";
+    String host1name = "ios-ospf-passive1";
+    String host2name = "ios-ospf-passive2";
+    String iface1Name = "Ethernet1";
+    String iface2Name = "Ethernet2";
+    List<String> configurationNames = ImmutableList.of(host1name, host2name);
+
+    Batfish batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + testrigName, configurationNames)
+                .build(),
+            _folder);
+    Map<String, Configuration> configurations = batfish.loadConfigurations();
+
+    Configuration c1 = configurations.get(host1name);
+    Configuration c2 = configurations.get(host2name);
+
+    // in host1, default is active which is overridden for iface1
+    assertThat(c1, hasInterface(iface1Name, isOspfPassive(equalTo(true))));
+    assertThat(c1, hasInterface(iface2Name, isOspfPassive(equalTo(false))));
+
+    // in host2, default is passive which is overridden for iface1
+    assertThat(c2, hasInterface(iface1Name, isOspfPassive(equalTo(false))));
+    assertThat(c2, hasInterface(iface2Name, isOspfPassive(equalTo(true))));
   }
 
   @Test

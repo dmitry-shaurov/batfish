@@ -58,6 +58,7 @@ private void setWildcard() {
 tokens {
    ACK,
    BANG,
+   DYNAMIC_DB,
    FIN,
    ISO_ADDRESS,
    PIPE,
@@ -397,7 +398,7 @@ AS_PATH_EXPAND
 
 AS_PATH_GROUP
 :
-   'as-path-group'
+   'as-path-group' -> pushMode ( M_AsPathGroup )
 ;
 
 AS_PATH_PREPEND
@@ -470,6 +471,11 @@ AUTHORIZED_KEYS_COMMAND_USER
    'authorized-keys-command-user'
 ;
 
+AUTO
+:
+   'auto'
+;
+
 AUTO_EXPORT
 :
    'auto-export'
@@ -502,7 +508,7 @@ BACKUP_ROUTER
 
 BANDWIDTH
 :
-   'bandwidth'
+   'bandwidth' -> pushMode ( M_Bandwidth )
 ;
 
 BASIC
@@ -630,6 +636,11 @@ CLEAR
    'clear'
 ;
 
+CLIENT
+:
+   'client'
+;
+
 CLIENT_ALIVE_COUNT_MAX
 :
    'client-alive-count-max'
@@ -707,6 +718,11 @@ COMPRESS_CONFIGURATION_FILES
 CONDITION
 :
    'condition'
+;
+
+CONFEDERATION
+:
+   'confederation'
 ;
 
 CONNECTIONS
@@ -809,6 +825,11 @@ DEFAULT_ADDRESS_SELECTION
    'default-address-selection'
 ;
 
+DEFAULT_GATEWAY
+:
+   'default-gateway'
+;
+
 DEFAULT_LSA
 :
    'default-lsa'
@@ -857,6 +878,11 @@ DES_CBC
 DESCRIPTION
 :
    'description' -> pushMode ( M_Description )
+;
+
+DESIGNATED_FORWARDER_ELECTION_HOLD_TIME
+:
+   'designated-forwarder-election-hold-time'
 ;
 
 DESTINATION
@@ -1074,6 +1100,11 @@ EKSHELL
    'ekshell'
 ;
 
+ELIGIBLE
+:
+   'eligible'
+;
+
 ENABLE
 :
    'enable'
@@ -1119,6 +1150,11 @@ ETHER_OPTIONS
    'ether-options'
 ;
 
+ETHER_TYPE
+:
+   'ether-type'
+;
+
 ETHERNET_SWITCHING
 :
    'ethernet-switching'
@@ -1132,6 +1168,11 @@ ETHERNET_SWITCHING_OPTIONS
 EVENT_OPTIONS
 :
    'event-options'
+;
+
+EVPN
+:
+   'evpn'
 ;
 
 EXACT
@@ -1174,6 +1215,11 @@ EXPRESSION
    'expression'
 ;
 
+EXTENDED_VNI_LIST
+:
+   'extended-vni-list'
+;
+
 EXTENSIBLE_SUBSCRIBER
 :
    'extensible-subscriber'
@@ -1202,6 +1248,11 @@ EXTERNAL_PREFERENCE
 EXTERNAL_ROUTER_ID
 :
    'external-router-id'
+;
+
+EXTENSION_HEADER
+:
+    'extension-header'
 ;
 
 EXTENSIONS
@@ -1292,6 +1343,16 @@ FLOW
 FLOW_CONTROL
 :
    'flow-control'
+;
+
+FLOW_GATE
+:
+   'flow-gate'
+;
+
+FLOW_SESSION
+:
+   'flow-session'
 ;
 
 FORCE_UP
@@ -1792,6 +1853,11 @@ INFO_REQUEST
 INGRESS
 :
   'ingress'
+;
+
+INGRESS_REPLICATION
+:
+  'ingress-replication'
 ;
 
 INNER
@@ -3216,6 +3282,11 @@ LOG_UPDOWN
    'log-updown'
 ;
 
+LOGICAL_SYSTEM
+:
+   'logical-system'
+;
+
 LOGICAL_SYSTEMS
 :
    'logical-systems'
@@ -3491,6 +3562,11 @@ MULTICAST_MAC
    'multicast-mac' -> pushMode ( M_MacAddress )
 ;
 
+MULTICAST_MODE
+:
+   'multicast-mode'
+;
+
 MULTIHOP
 :
    'multihop'
@@ -3544,6 +3620,11 @@ NAT
 NATIVE_VLAN_ID
 :
    'native-vlan-id'
+;
+
+NBMA
+:
+   'nbma'
 ;
 
 NEAREST
@@ -3714,6 +3795,11 @@ NO_EXPORT
 NO_FLOW_CONTROL
 :
    'no-flow-control'
+;
+
+NO_GATEWAY_COMMUNITY
+:
+   'no-gateway-community'
 ;
 
 NO_INSTALL
@@ -3919,6 +4005,16 @@ OVERRIDE_METRIC
 OVERRIDES
 :
    'overrides'
+;
+
+P2MP
+:
+   'p2mp'
+;
+
+P2MP_OVER_LAN
+:
+   'p2mp-over-lan'
 ;
 
 P2P
@@ -4311,6 +4407,11 @@ PROXY_IDENTITY
    'proxy-identity'
 ;
 
+PROXY_MACIP_ADVERTISEMENT
+:
+   'proxy-macip-advertisement'
+;
+
 PSH
 :
    'psh'
@@ -4428,7 +4529,7 @@ REDUNDANT_PARENT
 
 REFERENCE_BANDWIDTH
 :
-   'reference-bandwidth' -> pushMode ( M_ReferenceBandwidth )
+   'reference-bandwidth' -> pushMode ( M_Bandwidth )
 ;
 
 REJECT
@@ -4571,6 +4672,11 @@ ROUTE_DISTINGUISHER
    'route-distinguisher' -> pushMode ( M_RouteDistinguisher )
 ;
 
+ROUTE_DISTINGUISHER_ID
+:
+   'route-distinguisher-id'
+;
+
 ROUTE_FILTER
 :
    'route-filter'
@@ -4696,6 +4802,11 @@ SCCP
    'sccp'
 ;
 
+SCHEDULER
+:
+   'scheduler'
+;
+
 SCREEN
 :
    'screen'
@@ -4724,6 +4835,11 @@ SECRET
 SECURITY
 :
    'security'
+;
+
+SECURITY_PROFILE
+:
+   'security-profile'
 ;
 
 SECURITY_ZONE
@@ -4804,6 +4920,11 @@ SHARED_IKE_ID
 SHORTCUTS
 :
    'shortcuts'
+;
+
+SIGNALING
+:
+   'signaling'
 ;
 
 SIMPLE
@@ -5365,6 +5486,11 @@ UNTRUST_SCREEN
    'untrust-screen'
 ;
 
+UPLINK_FAILURE_DETECTION
+:
+   'uplink-failure-detection'
+;
+
 UPTO
 :
    'upto'
@@ -5455,6 +5581,16 @@ VLAN_TAGGING
    'vlan-tagging'
 ;
 
+VNI
+:
+   'vni'
+;
+
+VNI_OPTIONS
+:
+   'vni-options'
+;
+
 VPLS
 :
    'vpls'
@@ -5508,6 +5644,16 @@ VRRP_GROUP
 VSTP
 :
    'vstp'
+;
+
+VTEP_SOURCE_INTERFACE
+:
+   'vtep-source-interface'
+;
+
+VXLAN
+:
+   'vxlan'
 ;
 
 WEB_MANAGEMENT
@@ -6069,6 +6215,62 @@ M_AsPathExpr_WS
    F_WhitespaceChar+ -> channel ( HIDDEN )
 ;
 
+mode M_AsPathGroup;
+
+M_AsPathGroup_WS
+:
+   F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+M_AsPathGroup_NAME_QUOTED
+:
+  '"' ~'"'+ '"' -> mode ( M_AsPathGroup2 )
+;
+
+M_AsPathGroup_NAME
+:
+  F_NonWhitespaceChar+ -> mode(M_AsPathGroup2)
+;
+
+mode M_AsPathGroup2;
+
+M_AsPathGroup2_WS
+:
+   F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+M_AsPathGroup2_NEWLINE
+:
+  F_NewlineChar+ -> type(NEWLINE), popMode
+;
+
+M_AsPathGroup2_AS_PATH
+:
+   'as-path' -> type(AS_PATH), mode(M_AsPathGroup3)
+;
+
+M_AsPathGroup2_DYNAMIC_DB
+:
+  'dynamic-db' -> type(DYNAMIC_DB), popMode
+;
+
+mode M_AsPathGroup3;
+
+M_AsPathGroup3_WS
+:
+   F_WhitespaceChar+ -> channel(HIDDEN)
+;
+
+M_AsPathGroup3_NAME_QUOTED
+:
+  '"' ~'"'+ '"' -> mode (M_AsPathRegex)
+;
+
+M_AsPathGroup3_NAME
+:
+  F_NonWhitespaceChar+ -> mode(M_AsPathRegex)
+;
+
 mode M_AsPathPrepend;
 
 M_AsPathPrepend_DEC
@@ -6483,34 +6685,34 @@ M_PrefixListName_WS
    F_WhitespaceChar+ -> channel ( HIDDEN )
 ;
 
-mode M_ReferenceBandwidth;
+mode M_Bandwidth;
 
-M_ReferenceBandwidth_DEC
+M_Bandwidth_DEC
 :
   F_Digit+ -> type ( DEC )
 ;
 
-M_ReferenceBandwidth_G
+M_Bandwidth_G
 :
-  'g' -> type ( G )
+  'g' -> type ( G ) , popMode
 ;
 
-M_ReferenceBandwidth_K
+M_Bandwidth_K
 :
-  'k' -> type ( K )
+  'k' -> type ( K ) , popMode
 ;
 
-M_ReferenceBandwidth_M
+M_Bandwidth_M
 :
-  'm' -> type ( M )
+  'm' -> type ( M ) , popMode
 ;
 
-M_ReferenceBandwidth_NEWLINE
+M_Bandwidth_NEWLINE
 :
   F_NewlineChar+ -> type ( NEWLINE ) , popMode
 ;
 
-M_ReferenceBandwidth_WS
+M_Bandwidth_WS
 :
    F_WhitespaceChar+ -> channel ( HIDDEN )
 ;

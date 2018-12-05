@@ -18,14 +18,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-import com.google.common.collect.Streams;
 import io.opentracing.ActiveSpan;
 import io.opentracing.util.GlobalTracer;
 import java.io.File;
@@ -47,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
@@ -1439,18 +1441,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return new NetworkSnapshot(_settings.getContainer(), _testrigSettings.getName());
   }
 
-  private Set<Edge> getSymmetricEdgePairs(SortedSet<Edge> edges) {
-    Set<Edge> consumedEdges = new LinkedHashSet<>();
-    for (Edge edge : edges) {
-      if (consumedEdges.contains(edge)) {
-        continue;
-      }
-      consumedEdges.add(edge);
-      consumedEdges.add(edge.reverse());
-    }
-    return consumedEdges;
-  }
-
   @Override
   public String getTaskId() {
     return _settings.getTaskId();
@@ -2163,11 +2153,14 @@ public class Batfish extends PluginConsumer implements IBatfish {
       String fileText = vendorFile.getValue();
 
       Warnings warnings = buildWarnings(_settings);
+
+      Multimap<String, String> duplicateHostnames = HashMultimap.create();
+
       String filename =
           _settings.getActiveTestrigSettings().getInputPath().relativize(currentFile).toString();
       ParseVendorConfigurationJob job =
           new ParseVendorConfigurationJob(
-              _settings, fileText, filename, warnings, configurationFormat);
+              _settings, fileText, filename, warnings, configurationFormat, duplicateHostnames);
       jobs.add(job);
     }
     BatfishJobExecutor.runJobsInExecutor(
@@ -2408,11 +2401,36 @@ public class Batfish extends PluginConsumer implements IBatfish {
         .filter(
             i ->
                 i.getInterfaceType() == InterfaceType.AGGREGATED
-                    && i.getChannelGroupMembers().isEmpty())
+                    && i.getChannelGroupMembers().isEmpty()
+                    // TODO: Temporary hack to avoid disabling juniper AE unit interfaces
+                    && !i.getName().startsWith("ae")
+                    && !i.getName().contains("."))
         .forEach(i -> i.setActive(false));
 
     /* Compute bandwidth for aggregated interfaces. */
     interfaces.values().forEach(iface -> computeAggregatedInterfaceBandwidth(iface, interfaces));
+
+    /*
+     * For aggregated logical interfaces, inherit a subset of properties
+     * from the parent aggregated interfaces
+     */
+    interfaces
+        .values()
+        .stream()
+        .filter(iface -> iface.getInterfaceType() == InterfaceType.AGGREGATED)
+        .filter(iface -> !iface.getDependencies().isEmpty())
+        .forEach(
+            iface ->
+                iface.setBandwidth(
+                    iface
+                        .getDependencies()
+                        .stream()
+                        .map(dependency -> interfaces.get(dependency.getInterfaceName()))
+                        .filter(Objects::nonNull)
+                        .map(Interface::getBandwidth)
+                        .filter(Objects::nonNull)
+                        .mapToDouble(Double::doubleValue)
+                        .sum()));
   }
 
   private void identifyDeviceTypes(Collection<Configuration> configurations) {
@@ -2461,35 +2479,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
                             proc.initInterfaceCosts(c);
                           }
                         }));
-  }
-
-  private void printSymmetricEdgePairs() {
-    Map<String, Configuration> configs = loadConfigurations();
-    SortedSet<Edge> edges = CommonUtil.synthesizeTopology(configs).getEdges();
-    Set<Edge> symmetricEdgePairs = getSymmetricEdgePairs(edges);
-    List<Edge> edgeList = new ArrayList<>(symmetricEdgePairs);
-    for (int i = 0; i < edgeList.size() / 2; i++) {
-      Edge edge1 = edgeList.get(2 * i);
-      Edge edge2 = edgeList.get(2 * i + 1);
-      _logger.output(
-          edge1.getNode1()
-              + ":"
-              + edge1.getInt1()
-              + ","
-              + edge1.getNode2()
-              + ":"
-              + edge1.getInt2()
-              + " "
-              + edge2.getNode1()
-              + ":"
-              + edge2.getInt1()
-              + ","
-              + edge2.getNode2()
-              + ":"
-              + edge2.getInt2()
-              + "\n");
-    }
-    _logger.printElapsedTime();
   }
 
   @Override
@@ -3032,16 +3021,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     loadPlugins();
     boolean action = false;
     Answer answer = new Answer();
-
-    if (_settings.getPrintSymmetricEdgePairs()) {
-      printSymmetricEdgePairs();
-      return answer;
-    }
-
-    if (_settings.getSynthesizeJsonTopology()) {
-      writeJsonTopology();
-      return answer;
-    }
 
     if (_settings.getFlatten()) {
       Path flattenSource = _testrigSettings.getInputPath();
@@ -3918,52 +3897,41 @@ public class Batfish extends PluginConsumer implements IBatfish {
         getBddReachabilityAnalysisFactory(pkt, ignoreFilters);
     IpSpaceAssignment srcIpSpaceAssignment = parameters.getSrcIpSpaceAssignment();
     Set<String> finalNodes = parameters.getFinalNodes();
-    Set<FlowDisposition> dropDispositions =
+    Set<FlowDisposition> failureDispositions =
         ImmutableSet.of(
             FlowDisposition.DENIED_IN,
             FlowDisposition.DENIED_OUT,
             FlowDisposition.LOOP,
+            FlowDisposition.INSUFFICIENT_INFO,
+            FlowDisposition.NEIGHBOR_UNREACHABLE,
             FlowDisposition.NO_ROUTE,
             FlowDisposition.NULL_ROUTED);
+    Set<FlowDisposition> successDispositions =
+        ImmutableSet.of(
+            FlowDisposition.ACCEPTED,
+            FlowDisposition.DELIVERED_TO_SUBNET,
+            FlowDisposition.EXITS_NETWORK);
     Set<String> forbiddenTransitNodes = parameters.getForbiddenTransitNodes();
     Set<String> requiredTransitNodes = parameters.getRequiredTransitNodes();
-    Map<IngressLocation, BDD> acceptedBDDs =
+    Map<IngressLocation, BDD> successBdds =
         bddReachabilityAnalysisFactory.getAllBDDs(
             srcIpSpaceAssignment,
             parameters.getHeaderSpace(),
             forbiddenTransitNodes,
             requiredTransitNodes,
             finalNodes,
-            ImmutableSet.of(FlowDisposition.ACCEPTED));
-    Map<IngressLocation, BDD> droppedBDDs =
+            successDispositions);
+    Map<IngressLocation, BDD> failureBdds =
         bddReachabilityAnalysisFactory.getAllBDDs(
             srcIpSpaceAssignment,
             parameters.getHeaderSpace(),
             forbiddenTransitNodes,
             requiredTransitNodes,
             finalNodes,
-            dropDispositions);
-    Map<IngressLocation, BDD> neighborUnreachableBDDs =
-        bddReachabilityAnalysisFactory.getAllBDDs(
-            srcIpSpaceAssignment,
-            parameters.getHeaderSpace(),
-            forbiddenTransitNodes,
-            requiredTransitNodes,
-            finalNodes,
-            ImmutableSet.of(
-                FlowDisposition.NEIGHBOR_UNREACHABLE,
-                FlowDisposition.DELIVERED_TO_SUBNET,
-                FlowDisposition.EXITS_NETWORK,
-                FlowDisposition.INSUFFICIENT_INFO));
+            failureDispositions);
 
-    String flowTag = getFlowTag();
-    return Streams.concat(
-            computeMultipathInconsistencies(pkt, flowTag, acceptedBDDs, droppedBDDs).stream(),
-            computeMultipathInconsistencies(pkt, flowTag, acceptedBDDs, neighborUnreachableBDDs)
-                .stream(),
-            computeMultipathInconsistencies(pkt, flowTag, droppedBDDs, neighborUnreachableBDDs)
-                .stream())
-        .collect(ImmutableSet.toImmutableSet());
+    return ImmutableSet.copyOf(
+        computeMultipathInconsistencies(pkt, getFlowTag(), successBdds, failureBdds));
   }
 
   @Nonnull
@@ -4220,32 +4188,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     // Write answer.json and answer-pretty.json if WorkItem was answering a question
     if (_settings.getQuestionName() != null) {
       writeJsonAnswer(structuredAnswerString);
-    }
-  }
-
-  private void writeJsonTopology() {
-    try {
-      Map<String, Configuration> configs = loadConfigurations();
-      SortedSet<Edge> textEdges = CommonUtil.synthesizeTopology(configs).getEdges();
-      JSONArray jEdges = new JSONArray();
-      for (Edge textEdge : textEdges) {
-        Configuration node1 = configs.get(textEdge.getNode1());
-        Configuration node2 = configs.get(textEdge.getNode2());
-        Interface interface1 = node1.getAllInterfaces().get(textEdge.getInt1());
-        Interface interface2 = node2.getAllInterfaces().get(textEdge.getInt2());
-        JSONObject jEdge = new JSONObject();
-        jEdge.put("interface1", interface1.toJSONObject());
-        jEdge.put("interface2", interface2.toJSONObject());
-        jEdges.put(jEdge);
-      }
-      JSONObject master = new JSONObject();
-      JSONObject topology = new JSONObject();
-      topology.put("edges", jEdges);
-      master.put("topology", topology);
-      String text = master.toString(3);
-      _logger.output(text);
-    } catch (JSONException e) {
-      throw new BatfishException("Failed to synthesize JSON topology", e);
     }
   }
 
