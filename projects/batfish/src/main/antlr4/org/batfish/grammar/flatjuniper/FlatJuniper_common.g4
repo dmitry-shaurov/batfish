@@ -168,7 +168,7 @@ interface_id
     node = variable COLON
   )?
   (
-    name = VARIABLE
+    name = variable
     (
       COLON suffix = DEC
     )?

@@ -5688,7 +5688,7 @@ VSTP
 
 VTEP_SOURCE_INTERFACE
 :
-   'vtep-source-interface'
+   'vtep-source-interface' -> pushMode(M_Interface)
 ;
 
 VXLAN
