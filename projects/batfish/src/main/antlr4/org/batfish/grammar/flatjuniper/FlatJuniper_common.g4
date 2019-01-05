@@ -164,14 +164,15 @@ icmp6_only_type
 
 interface_id
 :
-  (name = INTERFACE_NAME COLON chnl = DEC)
-  | (name = INTERFACE_NAME PERIOD unit = DEC)
-  | (name = INTERFACE_NAME)
-  | (name = INTERFACE_NAME COLON chnl = DEC PERIOD unit = DEC)
-  | (node = variable COLON name = INTERFACE_NAME)
-  | (node = variable COLON name = INTERFACE_NAME PERIOD unit = DEC)
-  | (node = variable COLON name = INTERFACE_NAME COLON chnl = DEC)
-  | (node = variable COLON name = INTERFACE_NAME COLON chnl = DEC PERIOD unit = DEC)
+//  (name = INTERFACE_NAME COLON chnl = DEC)
+//  | (name = INTERFACE_NAME PERIOD unit = DEC)
+//   name = INTERFACE_NAME
+   (node=variable COLON)? name = INTERFACE_NAME (COLON chnl=DEC)? (PERIOD unit = DEC)?
+//   | name = INTERFACE_NAME node=COLON chnl = DEC
+//  | (node = variable COLON name = INTERFACE_NAME)
+//  | (node = variable COLON name = INTERFACE_NAME PERIOD unit = DEC)
+//  | (node = variable COLON name = INTERFACE_NAME COLON chnl = DEC)
+//  | (node = variable COLON name = INTERFACE_NAME COLON chnl = DEC PERIOD unit = DEC)
 ;
 
 

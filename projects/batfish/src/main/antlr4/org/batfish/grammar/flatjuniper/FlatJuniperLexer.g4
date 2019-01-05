@@ -3150,7 +3150,7 @@ L2VPN
 
 L2_INTERFACE
 :
-  'l2-interface'
+  'l2-interface' -> pushMode(M_Interface)
 ;
 
 L2_LEARNING
@@ -3160,7 +3160,7 @@ L2_LEARNING
 
 L3_INTERFACE
 :
-   'l3-interface'
+   'l3-interface' -> pushMode(M_Interface)
 ;
 
 LABEL_SWITCHED_PATH
@@ -5070,7 +5070,7 @@ SOURCE_IDENTITY
 
 SOURCE_INTERFACE
 :
-   'source-interface'
+   'source-interface' -> pushMode(M_Interface)
 ;
 
 SOURCE_MAC_ADDRESS
@@ -6196,6 +6196,18 @@ F_Variable_RequiredVarChar
 ;
 
 fragment
+F_Hostname_LeadingChar
+:
+   [A-Za-z]
+;
+
+fragment
+F_Hostname_TrailingChar
+:
+   [A-Za-z0-9_]|'-'
+;
+
+fragment
 F_Variable_RequiredVarChar_Ipv6
 :
    ~[ 0-9\t\n\r/.,\-:;{}<>[\]&|()"']
@@ -6491,6 +6503,11 @@ M_DSCP_WS
 
 mode M_Interface;
 
+M_Interface_COLON
+:
+   ':' -> type (COLON)
+;
+
 M_Interface_ALL
 :
    'all' -> type ( ALL ) , popMode
@@ -6526,7 +6543,10 @@ M_Interface_INTERFACE_RANGE
 
 M_Interface_INTERFACE_NAME
 :
-   F_InterfaceMediaType '-'? F_Digit+ ('/' F_Digit+)* -> type(INTERFACE_NAME), popMode
+   (
+      F_InterfaceMediaType '-'? F_Digit+ ('/' F_Digit+)*
+      | 'irb'
+   ) -> type(INTERFACE_NAME), popMode
 ;
 
 M_Interface_PORT_OVERLOADING
@@ -6549,10 +6569,9 @@ M_Interface_TRACEOPTIONS
    'traceoptions' -> type ( TRACEOPTIONS ) , popMode
 ;
 
-M_Interface_VARIABLE
+M_Interface_HOSTNAME
 :
-   F_Variable_RequiredVarChar F_Variable_InterfaceVarChar* -> type ( VARIABLE )
-   , popMode
+   F_Hostname_LeadingChar F_Hostname_TrailingChar* -> type ( VARIABLE )
 ;
 
 M_Interface_WILDCARD
