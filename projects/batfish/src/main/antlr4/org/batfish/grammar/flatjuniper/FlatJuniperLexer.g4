@@ -60,6 +60,7 @@ tokens {
    BANG,
    DYNAMIC_DB,
    FIN,
+   INTERFACE_NAME,
    ISO_ADDRESS,
    PIPE,
    RST,
@@ -6080,6 +6081,79 @@ F_HexDigit
 ;
 
 fragment
+F_InterfaceMediaType
+:
+   ('ae' |
+   'as' |
+   'at' |
+   'bcm' |
+   'cau4' |
+   'ca1' |
+   'ci' |
+   'coc1' |
+   'coc3' |
+   'coc12' |
+   'coc48' |
+   'cp' |
+   'cstm1' |
+   'cstm4' |
+   'cstm16' |
+   'ct1' |
+   'ct3' |
+   'demux' |
+   'dfc' |
+   'ds' |
+   'dsc' |
+   'e1' |
+   'e3' |
+   'em' |
+   'es' |
+   'et' |
+   'fe' |
+   'fxp' |
+   'ge' |
+   'gr' |
+   'gre' |
+   'ip' |
+   'ipip' |
+   'ixgbe' |
+   'iw' |
+   'lc' |
+   'lo' |
+   'ls' |
+   'lsi' |
+   'lm' |
+   'mo' |
+   'ms' |
+   'mt' |
+   'mtun' |
+   'oc3' |
+   'pd' |
+   'pe' |
+   'pimd' |
+   'pime' |
+   'flsq' |
+   'rms' |
+   'rsp' |
+   'se' |
+   'si' |
+   'so' |
+   'sp' |
+   'stm1' |
+   'stm4' |
+   'smt16' |
+   't1' |
+   't3' |
+   'tap' |
+   'umd' |
+   'vsp' |
+   'vc4' |
+   'vt' |
+   'xe' |
+   'xt')
+;
+
+fragment
 F_IpAddress
 :
    F_DecByte '.' F_DecByte '.' F_DecByte '.' F_DecByte
@@ -6448,6 +6522,11 @@ M_Interface_INTERFACE
 M_Interface_INTERFACE_RANGE
 :
    'interface-range' -> type ( INTERFACE_RANGE ) , popMode
+;
+
+M_Interface_INTERFACE_NAME
+:
+   F_InterfaceMediaType '-'? F_Digit+ ('/' F_Digit+)* -> type(INTERFACE_NAME), popMode
 ;
 
 M_Interface_PORT_OVERLOADING
